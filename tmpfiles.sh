@@ -41,9 +41,9 @@ invalid_option() {
 
 dryrun_or_real() {
 	local dryrun=
-	if [ ${DRYRUN} -eq 1 ]; then
+	case ${DRYRUN} in 1)
 		dryrun="echo"
-	fi
+	esac
 	${dryrun} "$@"
 }
 
@@ -73,15 +73,15 @@ relabel() {
 			if [ -x /sbin/restorecon ]; then
 				dryrun_or_real restorecon ${CHOPTS} "${path}" || status="$?"
 			fi
-			if [ "${uid}" != '-' ]; then
+			case "${uid}" in ('-') : ;; (*)
 				dryrun_or_real chown ${CHOPTS} "${uid}" "${path}" || status="$?"
-			fi
-			if [ "${gid}" != '-' ]; then
+			esac
+			case "${gid}" in ('-') : ;; (*)
 				dryrun_or_real chgrp ${CHOPTS} "${gid}" "${path}" || status="$?"
-			fi
-			if [ "${mode}" != '-' ]; then
+			esac
+			case "${mode}" in ('-') : ;; (*)
 				dryrun_or_real chmod ${CHOPTS} "${mode}" "${path}" || status="$?"
-			fi
+			esac
 		fi
 	done
 	return ${status}
@@ -89,7 +89,8 @@ relabel() {
 
 splitpath() {
     local path=$1
-    while [ -n "${path}" ]; do
+    while : ; do
+        case "${path}" in ('') break; esac
         printf '%s\n' "${path}"
         path=${path%/*}
     done
@@ -105,15 +106,15 @@ _restorecon() {
 createdirectory() {
 	local mode="$1" uid="$2" gid="$3" path="$4"
 	[ -d "${path}" ] || dryrun_or_real mkdir -p "${path}"
-	if [ "${uid}" = - ]; then
+	case "${uid}" in (-)
 		uid=root
-	fi
-	if [ "${gid}" = - ]; then
+	esac
+	case "${gid}" in (-)
 		gid=root
-	fi
-	if [ "${mode}" = - ]; then
+	esac
+	case "${mode}" in (-)
 		mode=0755
-	fi
+	esac
 	dryrun_or_real chown ${uid} "${path}"
 	dryrun_or_real chgrp ${gid} "${path}"
 	dryrun_or_real chmod ${mode} "${path}"
@@ -122,15 +123,15 @@ createdirectory() {
 createfile() {
 	local mode="$1" uid="$2" gid="$3" path="$4"
 	dryrun_or_real touch "${path}"
-	if [ "${uid}" = - ]; then
+	case "${uid}" in (-)
 		uid=root
-	fi
-	if [ "${gid}" = - ]; then
+	esac
+	case "${gid}" in (-)
 		gid=root
-	fi
-	if [ "${mode}" = - ]; then
+	esac
+	case "${mode}" in (-l
 		mode=0644
-	fi
+	esac
 	dryrun_or_real chown ${uid} "${path}"
 	dryrun_or_real chgrp ${gid} "${path}"
 	dryrun_or_real chmod ${mode} "${path}"
@@ -139,15 +140,15 @@ createfile() {
 createpipe() {
 	local mode="$1" uid="$2" gid="$3" path="$4"
 	dryrun_or_real mkfifo "${path}"
-	if [ "${uid}" = - ]; then
+	case "${uid}" in (-)
 		uid=root
-	fi
-	if [ "${gid}" = - ]; then
+	esac
+	case "${gid}" in (-)
 		gid=root
-	fi
-	if [ "${mode}" = - ]; then
+	esac
+	case "${mode}" in (-)
 		mode=0644
-	fi
+	esac
 	dryrun_or_real chown ${uid} "${path}"
 	dryrun_or_real chgrp ${gid} "${path}"
 	dryrun_or_real chmod ${mode} "${path}"
@@ -156,15 +157,15 @@ createpipe() {
 _b() {
 	# Create a block device node if it doesn't exist yet
 	local path=$1 mode=$2 uid=$3 gid=$4 age=$5 arg=$6
-	if [ "${uid}" = - ]; then
+	case "${uid}" in (-)
 		uid=root
-	fi
-	if [ "${gid}" = - ]; then
+	esac
+	case "${gid}" in (-)
 		gid=root
-	fi
-	if [ "${mode}" = - ]; then
+	esac
+	case "${mode}" in (-)
 		mode=0644
-	fi
+	esac
 	if [ ! -e "${path}" ]; then
 		dryrun_or_real mknod -m ${mode} "${path}" b "${arg%:*}" "${arg#*:}"
 		_restorecon "${path}"
@@ -176,15 +177,15 @@ _b() {
 _c() {
 	# Create a character device node if it doesn't exist yet
 	local path=$1 mode=$2 uid=$3 gid=$4 age=$5 arg=$6
-	if [ "${uid}" = - ]; then
+	case "${uid}" in (-)
 		uid=root
-	fi
-	if [ "${gid}" = - ]; then
+	esac
+	case "${gid}" in (-)
 		gid=root
-	fi
-	if [ "${mode}" = - ]; then
+	esac
+	case "${mode}" in (-)
 		mode=0644
-	fi
+	esac
 	if [ ! -e "${path}" ]; then
 		dryrun_or_real mknod -m ${mode} "${path}" c "${arg%:*}" "${arg#*:}"
 		_restorecon "${path}"
@@ -215,13 +216,13 @@ _f() {
 	# Create a file if it doesn't exist yet
 	local path=$1 mode=$2 uid=$3 gid=$4 age=$5 arg=$6
 
-	[ "${CREATE}" -gt 0 ] || return 0
+	case $(( "${CREATE}" <= 0 )) in (1) return 0; esac
 
 	if [ ! -e "${path}" ]; then
 		createfile "${mode}" "${uid}" "${gid}" "${path}"
-		if [ -n "${arg}" ]; then
+		case "${arg}" in (?*)
 			_w "$@"
-		fi
+		esac
 	fi
 }
 
@@ -461,20 +462,20 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-if [ $(( CLEAN )) -eq 1 ] ; then
+case $(( CLEAN )) in (1)
 	printf '%s clean mode is not implemented\n' "${0##*/}"
 	exit 1
-fi
+esac
 
-if [ "${CREATE}${REMOVE}" = '00' ]; then
+case "${CREATE}${REMOVE}" in ('00')
 	usage 1 >&2
-fi
+esac
 
 # XXX: The harcoding of /usr/lib/ is an explicit choice by upstream
 tmpfiles_dirs='/usr/lib/tmpfiles.d /run/tmpfiles.d /etc/tmpfiles.d'
 tmpfiles_basenames=''
 
-if [ -z "${FILES}" ]; then
+case "${FILES}" in ('')
 	# Build a list of sorted unique basenames
 	# directories declared later in the tmpfiles_d array will override earlier
 	# directories, on a per file basename basis.
@@ -490,23 +491,23 @@ if [ -z "${FILES}" ]; then
 	done # for d in ${tmpfiles_dirs}
 	# shellcheck disable=SC2059
 	FILES="$(printf "${tmpfiles_basenames}" | sort -u )"
-fi
+esac
 
 tmpfiles_d=''
 
 for b in ${FILES} ; do
-	if [ "${b##*/}" != "${b}" ]; then
+	case "${b}" in (*'/'*)
 		# The user specified a path on the command line
 		# Just pass it through unaltered
 		tmpfiles_d="${tmpfiles_d} ${b}"
-	else
+	;;(*)
 		real_f=''
 		for d in ${tmpfiles_dirs} ; do
 			f=${d}/${b}
 			[ -f "${f}" ] && real_f=${f}
 		done
 		[ -f "${real_f}" ] && tmpfiles_d="${tmpfiles_d} ${real_f}"
-	fi
+	esac
 done
 
 error=0
@@ -532,17 +533,13 @@ for FILE in ${tmpfiles_d} ; do
 		FORCE=0
 
 		# Unless we have both command and path, skip this line.
-		if [ -z "${cmd}" ] || [ -z "${path}" ]; then
-			continue
-		fi
+		case "${cmd}" in (''|'#'*) continue; esac
+		case "${path}" in ('') continue; esac
 
-		case ${cmd} in
-			\#*) continue ;;
-		esac
-
-		while [ ${#cmd} -gt 1 ]; do
+		while : ; do
 			case ${cmd} in
-				*!) cmd=${cmd%!}; [ "${BOOT}" -eq "1" ] || continue 2 ;;
+				'') break; ;;
+				*!) cmd=${cmd%!}; case $(( "${BOOT}" != "1" )) in (1) continue 2; esac ;;
 				*+) cmd=${cmd%+}; FORCE=1; ;;
 				*) warninvalid ; continue 2 ;;
 			esac
@@ -555,13 +552,13 @@ for FILE in ${tmpfiles_d} ; do
 		esac
 
 		# fall back on defaults when parameters are passed as '-'
-		if [ "${mode}" = '-' ] || [ "${mode}" = '' ]; then
+		case "${mode}" in (''|'-')
 			case "${cmd}" in
 				p|f|F) mode=0644 ;;
 				d|D|v) mode=0755 ;;
 				C|z|Z|x|r|R|L) ;;
 			esac
-		fi
+		esac
 
 		[ "${uid}" = '-' ] || [ "${uid}" = '' ] && uid=0
 		[ "${gid}" = '-' ] || [ "${gid}" = '' ] && gid=0
@@ -582,7 +579,7 @@ for FILE in ${tmpfiles_d} ; do
 		"_${cmd}" "$@"
 		rc=$?
 		if [ "${DRYRUN}" -eq "0" ]; then
-			[ ${rc} -ne 0 ] && error=$((error + 1))
+			case $(( ${rc} != 0 )) in (1) error=$((error + 1)); esac
 		fi
 	done <"${FILE}"
 done
